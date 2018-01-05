@@ -1,0 +1,406 @@
+<!--
+    Powered By nodeppt - This is probably the best web presentation tool so far!
+    version: 1.4.5
+    site: https://github.com/ksky521/nodeppt
+    date: 
+-->
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>webpack-upgrade-pratice - By yedi</title>
+    <link rel="stylesheet" media="all" href="./css/nodeppt.css">
+    <link rel="stylesheet" media="only screen and (max-device-width: 480px)" href="./css/phone.css">
+    
+    <link rel="stylesheet" href="./js/highlight/styles/monokai_sublime.css">
+    <link rel="stylesheet" href="./css/font-awesome.css">
+    
+<link rel="stylesheet" href="./css/theme.dark.css">
+</head>
+<body>
+<div class="slides">
+    <slides id="container">
+        <slide class="slide"><section class="slide-wrapper"><article class="flexbox vcenter">
+<h1>webpack-upgrade-pratice</h1>
+<h2>演讲者：yedi</h2>
+
+</article></section></slide>
+<slide class="slide"><section class="slide-wrapper"><article class="flexbox vcenter">
+<h1>引述</h1>
+<ul class="rollIn">
+<li>webapck凭借其模块管理功能强大，自定义配置打包，文件名hash化，完善的开发工具以及其他很多的有点，成为很多公司的标配的前端工程化、自动化的工具了。</li>
+<li>因此这次分享不会再继续赘述webpack当中主要角色的概念和使用</li>
+<li>那么这次就一起来聊聊在这次webpack升级过程中，做了哪些策略调整，遇到了什么问题，以及效果</li>
+</ul>
+
+</article></section></slide>
+<slide class="slide"><section class="slide-wrapper"><article class="flexbox vcenter">
+<h1>我们关注什么</h1>
+<ul class="rollIn">
+<li>开发过程中打包效率<ul class="fadeIn">
+<li>是否还能再提升？</li>
+<li>首次打包后之后再次打包能否提升？</li>
+</ul>
+</li>
+<li>打包后的文件<ul class="fadeIn">
+<li>文件大小能否更小？</li>
+<li>命中缓存和更新？</li>
+</ul>
+</li>
+</ul>
+
+</article></section></slide>
+<slide class="slide"><section class="slide-wrapper"><hgroup>
+<h1>DedupePlugin和OccurenceOrderPlugin</h1>
+
+</hgroup><article>
+
+<ul class="rollIn">
+<li>这是webpack1常用的两个插件</li>
+<li><pre><code class="javascript">new webpack.optimize.DedupePlugin() // 删除重复数据
+</code></pre>
+</li>
+<li><pre><code class="javascript">new webpack.optimize.OccurenceOrderPlugin() 
+// webpack就能够比对id的使用频率和分布来得出最短的id分配给使用频率高的模块
+</code></pre>
+</li>
+<li>怎么理解？</li>
+</ul>
+
+</article></section></slide>
+<slide class="slide"><section class="slide-wrapper"><hgroup>
+<h1>从webpack1到webpack2</h1>
+
+</hgroup><article>
+
+<ul class="rollIn">
+<li>内置DedupePlugin和OccurenceOrderPlugin</li>
+<li><pre><code class="javascript">// .babelrc
+{
+  &quot;presets&quot;: [
+    [&quot;env&quot;, {
+      &quot;targets&quot;: {
+        &quot;browsers&quot;: [&quot;last 2 versions&quot;]
+      }
+    }],
+    [&quot;es2015&quot;, {&quot;modules&quot;: false}]
+  ]
+}
+</code></pre>
+</li>
+<li>tree-shaking，树摇</li>
+<li>利用es6的module特性将没有引用到的代码和文件摇掉</li>
+</ul>
+
+</article></section></slide>
+<slide class="slide"><section class="slide-wrapper"><hgroup>
+<h1>配置resolve</h1>
+
+</hgroup><article>
+
+<ul class="rollIn">
+<li>配置resolve.alias定义别名，来减少文件的搜索路径，还可以增强代码易读性</li>
+<li>resolve.unsafeCache</li>
+<li><pre><code class="javascript">resolve: {
+  unsafeCache: true,
+  alias: {
+    c: path.join(srcPath, &#39;components&#39;),
+    common: path.join(srcPath, &#39;common&#39;),
+    components: path.join(srcPath, &#39;components&#39;),
+    util: path.join(srcPath, &#39;components/util/index.js&#39;)
+  },
+  modules: [
+    srcPath,
+    &#39;components&#39;,
+    &#39;node_modules&#39;
+  ]
+}
+</code></pre>
+</li>
+</ul>
+
+</article></section></slide>
+<slide class="slide"><section class="slide-wrapper"><hgroup>
+<h1>配置module.noParse</h1>
+
+</hgroup><article>
+
+<ul class="rollIn">
+<li>忽略匹配noParse的文件的解析和编译</li>
+<li><pre><code class="javascript">module: {
+  noParse: /jquery|lodash/, 
+  noParse: function(content) {
+    return /jquery|lodash/.test(content);
+  }
+}
+</code></pre>
+</li>
+</ul>
+
+</article></section></slide>
+<slide class="slide"><section class="slide-wrapper"><hgroup>
+<h1>配置externals</h1>
+
+</hgroup><article>
+
+<ul class="rollIn">
+<li>通过externals配置告诉webpack哪些变量名不用解析，而从外部变量读取。由于很多外部库，我们并不需要去调试它的源码，因此通过这个方案，省略部分依赖的解析和编译，能够很大地提升编译速度。配置好externals后，externals中依赖的库需要在模板文件中通过script外链引入</li>
+<li>如果某个依赖没有cdn地址呢</li>
+<li>每一个库都要去加一个script标签引入，是不是稍显麻烦，不利于维护</li>
+<li>不利于资源共享</li>
+<li>需要支持umd</li>
+</ul>
+
+</article></section></slide>
+<slide class="slide"><section class="slide-wrapper"><hgroup>
+<h2>使用DllPlugin和DllReferencePlugin</h2>
+
+</hgroup><article>
+
+<ul class="rollIn">
+<li>使用DllPlugin和DllReferencePlugin其实跟external都是将一些不需要调试源码，对业务内部模块无依赖的库从打包过程中分离</li>
+<li>先使用单独的webpack配置，使用DllPlugin提前编译这些库文件,生成一个js文件以及对应的一个manifest.json文件，</li>
+<li>然后再项目中的webpack配置文件中通过DllReferencePlugin插件，引用manifest.json来即可</li>
+</ul>
+
+</article></section></slide>
+<slide class="slide"><section class="slide-wrapper"><article>
+<div class="columns-2">
+    <pre style="height: 500px !important; overflow:auto"><code class="javascript">
+// webpack.dll.config.js
+const vendors = [
+   'react',
+   'react-router',
+   'react-router-dom',
+   'axios',
+   'immutable',
+   'jquery',
+   'babel-polyfill',
+   'bluebird',
+   'fastclick'
+]
+
+const config = {
+  entry: {
+    'vendor': vendors
+  },
+  output: {
+    pathinfo: true,
+    path: buildPath,
+    filename: '[name].js',
+    chunkFilename: '[name].js',
+    library: '[name]'
+  },
+  devtool: 'cheap-module-source-map',
+  plugins: [
+    new webpack.DllPlugin({
+      path: path.resolve(__dirname, 'manifest.json'),
+      name: '[name]',
+      context: srcPath
+    })
+  ]
+}
+    </code></pre>
+    <pre><code class="javascript">
+    // webpack.config.js
+    new webpack.DllReferencePlugin({
+      context: srcPath,
+      manifest: path.resolve(__dirname, 'manifest.json')
+    })
+    </code></pre>
+</div>
+</article></section></slide>
+<slide class="slide"><section class="slide-wrapper"><hgroup>
+<h1>使用DllPlugin的优点</h1>
+
+</hgroup><article>
+
+<ul class="rollIn">
+<li>配置方式简单</li>
+<li>提前预编译资源，之后打包不需要再对这些模块进行打包，打包效率提升</li>
+<li>不依赖与外链，利于资源共享</li>
+<li>管理集中，利于维护</li>
+<li>分离打包，不需要每次都对这些文件进行打包，</li>
+<li>可以起到CommonChunkPlugin的作用，抽取公共文件</li>
+</ul>
+
+</article></section></slide>
+<slide class="slide"><section class="slide-wrapper"><hgroup>
+<h1>使用DllPlugin的缺点</h1>
+
+</hgroup><article>
+
+<ul class="rollIn">
+<li>需要额外一份webpack配置，进行一次编译</li>
+<li><p>生成的文件需要手动插入模板文件或者使用AddAssetHtmlPlugin插件</p>
+</li>
+<li><p>思考：在我们的webpack配置中，哪些文件会被CommonChunkPlugin收取成一个公共js文件，有什么优缺点？</p>
+</li>
+<li>对外部依赖的公共库文件和业务公共文件进行分离，既可以利用用户浏览器缓存，又避免对没有改动过的外部依赖的公共库文件进行打包编译</li>
+</ul>
+
+</article></section></slide>
+<slide class="slide"><section class="slide-wrapper"><hgroup>
+<h1>使用HappyPack并行编译</h1>
+
+</hgroup><article>
+
+<ul class="rollIn">
+<li>happyPack利用多进程并行编译，同时还可以开启cache，从而提高编译效率</li>
+<li>happyPack开启cache之后，babel-loader编译js是否也能开启cacheDirectory提升效率?</li>
+<li><pre><code class="javascript">new HappyPack({
+    id: &#39;js&#39;,
+    threadPool: happyThreadPool,
+    loaders: [{
+      loader: &#39;babel-loader&#39;,
+      options: {
+        cacheDirectory: path.resolve(root, &#39;babelCache&#39;)
+      }
+    }],
+    verbose: true,
+    verboseWhenProfiling: true
+  })
+</code></pre>
+</li>
+</ul>
+
+</article></section></slide>
+<slide class="slide"><section class="slide-wrapper"><hgroup>
+<h1>PrefetchPlugin提前并行编译</h1>
+
+</hgroup><article>
+
+<ul class="rollIn">
+<li>当一个模块还未被require之前，提前解析和建立一个对该插件的请求</li>
+<li><pre><code class="javascript">new webpack.PrefetchPlugin(&#39;babel-runtime/core-js),
+new webpack.PrefetchPlugin(&#39;core-js/library&#39;)
+</code></pre>
+</li>
+</ul>
+
+</article></section></slide>
+<slide class="slide"><section class="slide-wrapper"><article class="flexbox vcenter">
+<h1>生产环境uglifyJsPlugin强化</h1>
+<ul class="rollIn">
+<li>将webpack.optimize.uplifyJsPlugin替换为uglifyjs-webpack-plugin或者webpack-uglify-parallel</li>
+<li>配置parallel参数可以进行多核压缩，提升压缩效率</li>
+<li>开启cache，对于后续压缩会有极大提升</li>
+<li><pre><code class="javascript">new UglifyJsPlugin({
+sourceMap: true,
+uglifyOptions: {
+ output: {
+   comments: false
+ },
+ compress: {
+   warnings: false
+ }
+},
+exclude: /\.min\.js$/,
+parallel: os.cpus().length,
+cache: true
+})
+</code></pre>
+</li>
+</ul>
+
+</article></section></slide>
+<slide class="slide"><section class="slide-wrapper"><article class="flexbox vcenter">
+<h1>webpack3的Scope Hoisting</h1>
+<ul class="rollIn">
+<li>webpack打包后的文件会有自己的一套模块管理的方式，会将模块用函数包裹，分配Id，例如：</li>
+<li><pre><code class="javascript">/* 0 */
+function (module, exports, require) {
+  var module_a = require(1)
+  console.log(module_a[&#39;default&#39;])
+},
+/* 1 */
+function (module, exports, require) {
+  exports[&#39;default&#39;] = &#39;module A&#39;
+}
+</code></pre>
+</li>
+<li><p>webpack3提供ModuleConcatenationPlugin插件，将模块放在一个函数里 {:&amp;.rollIn}</p>
+</li>
+<li>减少很多函数声明，减小文件大小，提升性能</li>
+</ul>
+
+</article></section></slide>
+<slide class="slide"><section class="slide-wrapper"><article class="flexbox vcenter">
+<h1>谢谢</h1>
+
+</article></section></slide>
+        
+
+        <!-- <slide class="slide logoslide dark nobackground">
+            <article class="flexbox vcenter">
+                <h2 style="color: white;">Powered By nodeppt v1.4.5</h2>
+            </article>
+        </slide> -->
+        <div class="slideTip" id="tip"></div>
+    </slides>
+</div>
+<canvas id="drawBoard" class="draw-board" width="900" height="700"></canvas>
+<div class="progress"><span id="progress"></span></div>
+<div id="_buttons">
+    <div class="_btn-box" id="_btn-box" style="display:none;">
+        <button class="fa fa-arrow-circle-left" id="_btn-prev"></button>
+        <button class="fa fa-arrow-circle-right" id="_btn-next"></button>
+        <button class="fa fa-paint-brush" id="_btn-brush"></button>
+        <button class="fa fa-compress" id="_btn-overview" data-toggle="fa fa-expand"></button>
+    </div>
+    <button class="fa fa-bars" id="_btn-bar"  data-toggle="fa fa-close"></button>
+</div>
+<script src="./js/mixjs/lib/mix.0.3.0.min.js"></script>
+<script>
+    var ASSET_RELATIVE_DIR = ".";
+</script>
+<script>
+var base = location.protocol + '//' + location.host;
+
+var path = (location.pathname + '#').split('/').filter(function(v){
+    return !!v;
+});
+path.pop();
+path = path.join('/');
+if (typeof ASSET_RELATIVE_DIR === 'string') {
+    path = path + '/' + ASSET_RELATIVE_DIR;
+}
+MixJS.config({
+    baseURL: [ base, path, 'js'].join('/')+'/'
+});
+
+</script>
+<script src="./js/mixjs/lib/event/broadcast.js"></script>
+<script src="./js/nodeppt.js"></script>
+<script>
+Slide.init({
+    containerID: 'container',
+    drawBoardID: 'drawBoard',
+    slideClass: '.slide',
+    buildClass: '.build',
+    progressID: 'progress',
+    transition: 'slide3',
+    width: 1100,
+    dir: './',
+    
+    //打开下面的注释就开启postMessage方式
+    //访问网址127.0.0.1:8080/ppt/demo#client
+    control:{
+        type: 'postMessage',
+        args:{
+            isControl:  false
+        }
+    },
+    
+    tipID: 'tip'
+});
+MixJS.loadJS('highlight/highlight.pack.js',function(){
+    hljs.tabReplace = '  ';
+    hljs.initHighlightingOnLoad();
+});
+</script>
+
+
+<!--placeholder-->
+</body>
+</html>
